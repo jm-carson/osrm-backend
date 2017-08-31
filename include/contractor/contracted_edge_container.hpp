@@ -66,32 +66,46 @@ struct ContractedEdgeContainer
         auto flags_iter = flags.begin();
         // destructive iterators, this is single-pass only
         // FIXME using dbegin() dend() will result in segfaults.
-        auto edges_iter = edges.begin();
-        auto edges_end = edges.end();
-        auto new_edges_iter = new_edges.begin();
-        auto new_edges_end = new_edges.end();
+        auto edges_iter = edges.dbegin();
+        auto edges_end = edges.dend();
+        auto new_edges_iter = new_edges.dbegin();
+        auto new_edges_end = new_edges.dend();
 
         while (edges_iter != edges_end && new_edges_iter != new_edges_end)
         {
-            while (mergeCompare(*edges_iter, *new_edges_iter) && edges_iter != edges_end)
-            {
-                merged_edges.push_back(*edges_iter++);
-                merged_flags.push_back(*flags_iter++);
-            }
-
-            while (mergeCompare(*new_edges_iter, *edges_iter) && new_edges_iter != new_edges_end)
-            {
-                merged_edges.push_back(*new_edges_iter++);
-                merged_flags.push_back(flag);
-            }
-
-            while (mergable(*edges_iter, *new_edges_iter) && edges_iter != edges_end &&
-                   new_edges_iter != new_edges_end)
+            while (edges_iter != edges_end && mergeCompare(*edges_iter, *new_edges_iter))
             {
                 merged_edges.push_back(*edges_iter);
-                merged_flags.push_back(*flags_iter++ | flag);
+                merged_flags.push_back(*flags_iter);
+                edges_iter++;
+                flags_iter++;
+            }
+
+            if (edges_iter == edges_end)
+            {
+                break;
+            }
+
+            while (new_edges_iter != new_edges_end && mergeCompare(*new_edges_iter, *edges_iter))
+            {
+                merged_edges.push_back(*new_edges_iter);
+                merged_flags.push_back(flag);
+                new_edges_iter++;
+            }
+
+            if (new_edges_iter == new_edges_end)
+            {
+                break;
+            }
+
+            while (edges_iter != edges_end && new_edges_iter != new_edges_end &&
+                   mergable(*edges_iter, *new_edges_iter))
+            {
+                merged_edges.push_back(*edges_iter);
+                merged_flags.push_back(*flags_iter | flag);
 
                 edges_iter++;
+                flags_iter++;
                 new_edges_iter++;
             }
         }
