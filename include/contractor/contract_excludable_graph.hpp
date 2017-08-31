@@ -15,16 +15,17 @@ namespace contractor
 using GraphFilterAndCore =
     std::tuple<QueryGraph, std::vector<std::vector<bool>>, std::vector<std::vector<bool>>>;
 
-inline auto contractExcludableGraph(ContractorGraph contractor_graph,
+inline auto contractExcludableGraph(ContractorGraph contractor_graph_,
                                     std::vector<EdgeWeight> node_weights,
                                     const std::vector<std::vector<bool>> &filters,
                                     const float core_factor = 1.0)
 {
-    auto num_nodes = contractor_graph.GetNumberOfNodes();
+    auto num_nodes = contractor_graph_.GetNumberOfNodes();
     ContractedEdgeContainer edge_container;
     ContractorGraph shared_core_graph;
     std::vector<bool> is_shared_core;
     {
+        ContractorGraph contractor_graph = std::move(contractor_graph_);
         std::vector<bool> always_allowed(num_nodes, true);
         for (const auto &filter : filters)
         {
