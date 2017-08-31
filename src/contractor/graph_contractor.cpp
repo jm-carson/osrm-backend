@@ -15,6 +15,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_sort.h>
+#include <tbb/parallel_invoke.h>
 
 #include <algorithm>
 #include <limits>
@@ -60,11 +61,12 @@ struct ContractorNodeData
 
     void Renumber(const std::vector<NodeID> &old_to_new)
     {
-        util::inplacePermutation(priorities.begin(), priorities.end(), old_to_new);
-        util::inplacePermutation(weights.begin(), weights.end(), old_to_new);
-        util::inplacePermutation(is_core.begin(), is_core.end(), old_to_new);
-        util::inplacePermutation(contractable.begin(), contractable.end(), old_to_new);
-        util::inplacePermutation(depths.begin(), depths.end(), old_to_new);
+        tbb::parallel_invoke(
+            [&] { util::inplacePermutation(priorities.begin(), priorities.end(), old_to_new); },
+            [&] { util::inplacePermutation(weights.begin(), weights.end(), old_to_new); },
+            [&] { util::inplacePermutation(is_core.begin(), is_core.end(), old_to_new); },
+            [&] { util::inplacePermutation(contractable.begin(), contractable.end(), old_to_new); },
+            [&] { util::inplacePermutation(depths.begin(), depths.end(), old_to_new); });
     }
 
     std::vector<bool> is_core;
@@ -628,7 +630,8 @@ std::vector<bool> contractGraph(ContractorGraph &graph,
         log << " ok.";
     }
 
-    auto number_of_nodes_to_contract = remaining_nodes.size();
+    auto number_of_core_nodes = std::max<std::size_t>(0, (1 - core_factor) * number_of_nodes);
+    auto number_of_nodes_to_contract = remaining_nodes.size() - number_of_core_nodes;
     util::Log() << "preprocessing " << number_of_nodes_to_contract << " ("
                 << (number_of_nodes_to_contract / (float)number_of_nodes * 100.) << "%) nodes...";
 
@@ -638,16 +641,15 @@ std::vector<bool> contractGraph(ContractorGraph &graph,
     const util::XORFastHash<> hash;
 
     unsigned current_level = 0;
-    std::size_t next_renumbering = number_of_nodes * 0.65 * core_factor;
-    auto number_of_core_nodes = std::max<std::size_t>(0, (1 - core_factor) * number_of_nodes);
+    std::size_t next_renumbering = number_of_nodes * 0.35;
     while (remaining_nodes.size() > number_of_core_nodes)
     {
-        if (number_of_contracted_nodes > next_renumbering)
+        if (remaining_nodes.size() < next_renumbering)
         {
             RenumberData(remaining_nodes, new_to_old_node_id, node_data, graph);
             log << "[renumbered]";
             // only one renumbering for now
-            next_renumbering = number_of_nodes;
+            next_renumbering = 0;
         }
 
         tbb::parallel_for(
